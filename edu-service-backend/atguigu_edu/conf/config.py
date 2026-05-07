@@ -14,14 +14,14 @@ class Settings(BaseSettings):
     llm_base_url: str = "https://api.openai.com/v1"
 
     # Database
-    database_url: str = "sqlite+aiosqlite:///./edu_dialogue_state.db"
+    database_url: str = "mysql+aiomysql://root:123321@127.0.0.1:13306/edu?charset=utf8mb4"
 
-    # Education API (placeholder)
-    edu_api_base_url: str = "http://localhost:9001"
+    # Business service (edu-service-backend-business)
+    business_base_url: str = "http://127.0.0.1:9001"
 
     # Server
     app_host: str = "127.0.0.1"
-    app_port: int = 8010
+    app_port: int = 8012
 
 
 settings = Settings()

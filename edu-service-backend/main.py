@@ -9,6 +9,7 @@ def main() -> None:
         host=settings.app_host,
         port=settings.app_port,
         reload=True,
+        log_level="debug",
     )
 
 

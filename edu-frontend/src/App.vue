@@ -19,53 +19,18 @@ const chatEndpoint = computed(() => '/api/chat')
 const chatHistoryEndpoint = computed(
   () => `/api/chat/history?sender_id=${encodeURIComponent(senderId.value.trim())}`,
 )
+const eduEndpointBase = computed(() => '/edu')
 
-function buildMockSidebar(sender) {
-  const suffix = sender.trim() || 'demo'
-  return {
-    courses: [
-      {
-        course_id: 'CRS_PY_FULL_001',
-        title: 'Python 全栈开发',
-        description: 'Web 基础、Django/FastAPI、部署与项目实战。',
-      },
-      {
-        course_id: 'CRS_JAVA_002',
-        title: 'Java 企业级开发',
-        description: 'Spring Boot、微服务与常见中间件。',
-      },
-    ],
-    classes: [
-      {
-        class_id: 'CLS_PY_FULL_05',
-        title: 'Python 全栈 · 第 5 期',
-        course_title: 'Python 全栈开发',
-        schedule: '每周二、四 晚 20:00',
-      },
-      {
-        class_id: 'CLS_JAVA_03',
-        title: 'Java 企业级 · 第 3 期',
-        course_title: 'Java 企业级开发',
-        schedule: '每周六 全天',
-      },
-    ],
-    orders: [
-      {
-        order_id: `ORD_${suffix.slice(0, 8)}_1001`,
-        title: 'Python 全栈 · 第 5 期 · 学费',
-        status: '已支付',
-        amount: 5980,
-        created_at: '2024-04-01',
-      },
-      {
-        order_id: `ORD_${suffix.slice(0, 8)}_1002`,
-        title: 'Java 企业级 · 第 3 期 · 学费',
-        status: '待支付',
-        amount: 6980,
-        created_at: '2024-05-07',
-      },
-    ],
+async function fetchEduJson(path) {
+  const response = await fetch(`${eduEndpointBase.value}${path}`)
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(payload?.detail || payload?.message || '教育业务服务请求失败。')
   }
+  if (payload?.code !== 0) {
+    throw new Error(payload?.message || '教育业务服务返回错误。')
+  }
+  return payload?.data
 }
 
 function createBaseMessage(role) {
@@ -241,11 +206,14 @@ async function fetchSidebarData() {
 
   isLoadingSidebar.value = true
   try {
-    await new Promise((resolve) => setTimeout(resolve, 180))
-    const mock = buildMockSidebar(currentSenderId)
-    courses.value = mock.courses
-    classes.value = mock.classes
-    orders.value = mock.orders
+    const [courseData, cohortData, orderData] = await Promise.all([
+      fetchEduJson(`/students/${encodeURIComponent(currentSenderId)}/courses?limit=10`),
+      fetchEduJson(`/students/${encodeURIComponent(currentSenderId)}/cohorts?limit=10`),
+      fetchEduJson(`/students/${encodeURIComponent(currentSenderId)}/orders?limit=10`),
+    ])
+    courses.value = Array.isArray(courseData?.courses) ? courseData.courses : []
+    classes.value = Array.isArray(cohortData?.cohorts) ? cohortData.cohorts : []
+    orders.value = Array.isArray(orderData?.orders) ? orderData.orders : []
   } catch (error) {
     sidebarError.value = error instanceof Error ? error.message : '加载业务对象失败。'
   } finally {
@@ -335,10 +303,11 @@ async function sendCourse(course) {
   await sendPayload({
     object: {
       type: 'course',
-      id: course.course_id,
-      title: course.title,
+      id: course.series_code,
+      title: course.series_name,
       attributes: {
-        description: course.description,
+        sale_status: course.sale_status,
+        delivery_mode: course.delivery_mode,
       },
     },
   })
@@ -355,11 +324,13 @@ async function sendClass(cls) {
   await sendPayload({
     object: {
       type: 'class',
-      id: cls.class_id,
-      title: cls.title,
+      id: cls.cohort_code,
+      title: cls.cohort_name,
       attributes: {
-        course_title: cls.course_title,
-        schedule: cls.schedule,
+        series_code: cls.series_code,
+        sale_price: cls.sale_price,
+        start_date: cls.start_date,
+        end_date: cls.end_date,
       },
     },
   })
@@ -376,10 +347,11 @@ async function sendOrder(order) {
   await sendPayload({
     object: {
       type: 'order',
-      id: order.order_id,
-      title: order.title,
+      id: order.order_no,
+      title: `订单 ${order.order_no}`,
       attributes: {
-        status: order.status,
+        status: order.order_status,
+        status_desc: order.status_desc,
         amount: order.amount,
         created_at: order.created_at,
       },
@@ -523,7 +495,7 @@ onMounted(async () => {
       <aside class="sidebar">
         <div class="sidebar-header">
           <h2>业务对象</h2>
-          <p class="muted small">以下为示例数据（可替换为真实教育业务 API）。</p>
+          <p class="muted small">数据来自教育业务服务（edu-service-backend-business）。</p>
         </div>
 
         <div class="tabs">
@@ -560,12 +532,13 @@ onMounted(async () => {
             暂无课程数据
           </div>
 
-          <article v-for="c in courses" :key="c.course_id" class="sidebar-card">
+          <article v-for="c in courses" :key="c.series_code" class="sidebar-card">
             <div class="card-top">
-              <div class="card-title">{{ c.title }}</div>
+              <div class="card-title">{{ c.series_name }}</div>
             </div>
-            <div class="card-meta line-clamp">{{ c.description }}</div>
-            <div class="card-meta">课程编码：{{ c.course_id }}</div>
+            <div class="card-meta">售卖状态：{{ c.sale_status }}</div>
+            <div class="card-meta">交付方式：{{ c.delivery_mode }}</div>
+            <div class="card-meta">课程编码：{{ c.series_code }}</div>
             <button
               type="button"
               class="primary-outline full-width"
@@ -582,13 +555,14 @@ onMounted(async () => {
             暂无班次数据
           </div>
 
-          <article v-for="k in classes" :key="k.class_id" class="sidebar-card">
+          <article v-for="k in classes" :key="k.cohort_code" class="sidebar-card">
             <div class="card-top">
-              <div class="card-title">{{ k.title }}</div>
+              <div class="card-title">{{ k.cohort_name }}</div>
             </div>
-            <div class="card-meta">所属课程：{{ k.course_title }}</div>
-            <div class="card-meta">开课安排：{{ k.schedule }}</div>
-            <div class="card-meta">班次编码：{{ k.class_id }}</div>
+            <div class="card-meta">所属课程：{{ k.series_code }}</div>
+            <div class="card-meta">开课日期：{{ k.start_date }} ~ {{ k.end_date || '—' }}</div>
+            <div class="card-meta">售价：{{ formatAmount(k.sale_price) }}</div>
+            <div class="card-meta">班次编码：{{ k.cohort_code }}</div>
             <button
               type="button"
               class="primary-outline full-width"
@@ -605,13 +579,13 @@ onMounted(async () => {
             暂无订单数据
           </div>
 
-          <article v-for="order in orders" :key="order.order_id" class="sidebar-card">
+          <article v-for="order in orders" :key="order.order_no" class="sidebar-card">
             <div class="card-top">
-              <div class="card-title">{{ order.title }}</div>
+              <div class="card-title">订单 {{ order.order_no }}</div>
               <div class="card-amount">{{ formatAmount(order.amount) }}</div>
             </div>
-            <div class="card-meta">订单号：{{ order.order_id }}</div>
-            <div class="card-meta">订单状态：{{ order.status }}</div>
+            <div class="card-meta">订单状态：{{ order.status_desc || order.order_status }}</div>
+            <div class="card-meta">创建时间：{{ order.created_at }}</div>
             <button
               type="button"
               class="primary-outline full-width"
@@ -626,7 +600,9 @@ onMounted(async () => {
     </div>
 
     <footer class="status-bar">
-      <span>Vite 代理：<code>/api</code> → <code>http://127.0.0.1:8010</code></span>
+      <span>Vite 代理：<code>/api</code> → <code>http://127.0.0.1:8012</code></span>
+      <span class="sep">·</span>
+      <span>业务服务：<code>/edu</code> → <code>http://127.0.0.1:9001</code></span>
       <span class="sep">·</span>
       <span>请先启动 <code>edu-service-backend</code> 再试聊天与历史接口。</span>
     </footer>

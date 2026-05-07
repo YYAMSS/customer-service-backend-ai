@@ -5,6 +5,9 @@ from typing import Annotated
 from fastapi import Depends
 
 from atguigu_edu.engine.dialogue_engine import DialogueEngine
+from atguigu_edu.conf.config import settings
+from atguigu_edu.infrastructure.business_client import BusinessServiceClient
+from atguigu_edu.infrastructure.business_provider import BusinessProvider
 from atguigu_edu.infrastructure.database import get_db_session
 from atguigu_edu.repository.dialogue_repository import DialogueStateRepository
 from atguigu_edu.service.dialogue_service import DialogueService
@@ -34,4 +37,18 @@ def get_dialogue_service(
     repo: Annotated[DialogueStateRepository, Depends(get_dialogue_state_repository)],
 ) -> DialogueService:
     return DialogueService(dialogue_state_repository=repo, dialogue_engine=engine)
+
+
+async def get_business_client():
+    client = BusinessServiceClient(base_url=settings.business_base_url)
+    try:
+        yield client
+    finally:
+        await client.aclose()
+
+
+async def get_business_provider(
+    client: Annotated[BusinessServiceClient, Depends(get_business_client)],
+):
+    yield BusinessProvider(client=client)
 

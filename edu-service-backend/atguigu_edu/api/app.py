@@ -16,6 +16,6 @@ async def lifespan(app: FastAPI):
     await close_db_engine()
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, debug=True)
 app.include_router(router)
 

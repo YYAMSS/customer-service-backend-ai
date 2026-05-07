@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from atguigu_edu.conf.config import settings
 from atguigu_edu.models.base import Base
+from atguigu_edu.models import dialogue_state as _dialogue_state_model  # noqa: F401
 
 _engine: AsyncEngine | None = None
 _sessionmaker: async_sessionmaker[AsyncSession] | None = None
