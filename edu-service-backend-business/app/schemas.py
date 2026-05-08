@@ -51,3 +51,20 @@ class StudentOrdersData(BaseModel):
     student_id: str
     orders: list[OrderSummaryData]
 
+
+class LearningProgressData(BaseModel):
+    student_id: str
+    cohort_code: str
+    cohort_name: str
+    series_code: str
+    attendance_present: int
+    attendance_absent: int
+    attendance_scheduled: int
+    video_completed: int
+    video_total: int
+    homework_submitted: int
+    homework_total: int
+    exam_taken: int
+    exam_total: int
+    note: str = ""
+

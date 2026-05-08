@@ -56,3 +56,12 @@ class ChatHistoryResponse(BaseModel):
     sender_id: str
     messages: list[ChatHistoryMessageResponse]
 
+
+class SessionStateResponse(BaseModel):
+    sender_id: str
+    active_flow: str | None = None
+    flow_step: str | None = None
+    flow_slots: dict[str, str] = Field(default_factory=dict)
+    suspended_flow: dict | None = None
+    focused_object: ChatObjectPayload | None = None
+

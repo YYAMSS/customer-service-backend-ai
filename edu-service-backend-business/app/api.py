@@ -9,6 +9,7 @@ from app.schemas import (
     ApiResponse,
     CohortSummaryData,
     CourseSummaryData,
+    LearningProgressData,
     OrderSummaryData,
     StudentCohortsData,
     StudentCoursesData,
@@ -240,6 +241,179 @@ def order_detail(order_no: str, db: Session = Depends(get_db)):
             status_desc=str(row.get("order_status") or ""),
             amount=row.get("payable_amount"),
             created_at=row.get("created_at"),
+        )
+    )
+
+
+@router.get(
+    "/students/{student_id}/cohorts/{cohort_code}/learning-progress",
+    response_model=ApiResponse,
+    tags=["学员"],
+    summary="查询学员在某班次的学习进度汇总（演示）",
+    description=(
+        "聚合考勤、课次规模；作业/考试若无明细数据则返回 0。"
+        "当前 demo 数据库中学员与前台 sender_id 未必一致，优先返回班次内一名示例学员的考勤。"
+    ),
+)
+def learning_progress(student_id: str, cohort_code: str, db: Session = Depends(get_db)):
+    cohort_row = db.execute(
+        text(
+            """
+            SELECT c.id AS cohort_id, c.cohort_code, c.cohort_name, s.series_code
+            FROM series_cohort c
+            JOIN series s ON s.id = c.series_id
+            WHERE c.cohort_code = :cohort_code
+            LIMIT 1
+            """
+        ),
+        {"cohort_code": cohort_code},
+    ).mappings().first()
+    if not cohort_row:
+        raise HTTPException(status_code=404, detail=f"班次 {cohort_code} 不存在。")
+
+    cohort_id = int(cohort_row["cohort_id"])
+    scheduled_sessions = int(
+        db.execute(
+            text(
+                """
+                SELECT COUNT(*)
+                FROM series_cohort_session scs
+                INNER JOIN series_cohort_course scco ON scs.series_cohort_course_id = scco.id
+                WHERE scco.cohort_id = :cid
+                """
+            ),
+            {"cid": cohort_id},
+        ).scalar()
+        or 0
+    )
+
+    sid_row = db.execute(
+        text(
+            """
+            SELECT student_id
+            FROM student_cohort_rel
+            WHERE cohort_id = :cid
+            LIMIT 1
+            """
+        ),
+        {"cid": cohort_id},
+    ).first()
+    db_student_id = int(sid_row[0]) if sid_row else None
+
+    present = absent = att_rows = 0
+    if db_student_id is not None:
+        agg = db.execute(
+            text(
+                """
+                SELECT
+                  COALESCE(SUM(CASE WHEN attendance_status IN ('present', 'late') THEN 1 ELSE 0 END), 0)
+                    AS present_cnt,
+                  COALESCE(SUM(CASE WHEN attendance_status = 'absent' THEN 1 ELSE 0 END), 0)
+                    AS absent_cnt,
+                  COALESCE(COUNT(*), 0) AS row_cnt
+                FROM session_attendance
+                WHERE cohort_id = :cid AND student_id = :sid
+                """
+            ),
+            {"cid": cohort_id, "sid": db_student_id},
+        ).first()
+        if agg:
+            present, absent, att_rows = int(agg[0]), int(agg[1]), int(agg[2])
+
+    denom = max(scheduled_sessions, att_rows)
+    hw_total = int(
+        db.execute(
+            text(
+                """
+                SELECT COUNT(DISTINCT sh.id)
+                FROM session_homework sh
+                INNER JOIN series_cohort_session scs ON sh.session_id = scs.id
+                INNER JOIN series_cohort_course scco ON scs.series_cohort_course_id = scco.id
+                WHERE scco.cohort_id = :cid
+                """
+            ),
+            {"cid": cohort_id},
+        ).scalar()
+        or 0
+    )
+    hw_done = 0
+    if db_student_id is not None and hw_total:
+        hw_done = int(
+            db.execute(
+                text(
+                    """
+                    SELECT COUNT(*)
+                    FROM session_homework_submission hsub
+                    INNER JOIN session_homework sh ON hsub.homework_id = sh.id
+                    INNER JOIN series_cohort_session scs ON sh.session_id = scs.id
+                    INNER JOIN series_cohort_course scco ON scs.series_cohort_course_id = scco.id
+                    WHERE scco.cohort_id = :cid AND hsub.student_id = :sid
+                    """
+                ),
+                {"cid": cohort_id, "sid": db_student_id},
+            ).scalar()
+            or 0
+        )
+
+    exam_total = int(
+        db.execute(
+            text(
+                """
+                SELECT COUNT(DISTINCT se.id)
+                FROM session_exam se
+                INNER JOIN series_cohort_session scs ON se.session_id = scs.id
+                INNER JOIN series_cohort_course scco ON scs.series_cohort_course_id = scco.id
+                WHERE scco.cohort_id = :cid
+                """
+            ),
+            {"cid": cohort_id},
+        ).scalar()
+        or 0
+    )
+    exam_done = 0
+    if db_student_id is not None and exam_total:
+        exam_done = int(
+            db.execute(
+                text(
+                    """
+                    SELECT COUNT(*)
+                    FROM session_exam_submission esub
+                    INNER JOIN session_exam se ON esub.exam_id = se.id
+                    INNER JOIN series_cohort_session scs ON se.session_id = scs.id
+                    INNER JOIN series_cohort_course scco ON scs.series_cohort_course_id = scco.id
+                    WHERE scco.cohort_id = :cid AND esub.student_id = :sid
+                    """
+                ),
+                {"cid": cohort_id, "sid": db_student_id},
+            ).scalar()
+            or 0
+        )
+
+    video_total = denom
+    video_done = min(present, video_total) if video_total else 0
+
+    note = ""
+    if db_student_id is None:
+        note = "数据库中暂无该班次的学员报名记录，考勤/作业/考试为占位统计。"
+    elif scheduled_sessions == 0:
+        note = "该班次尚未配置课次，进度分母可能为 0。"
+
+    return _wrap(
+        LearningProgressData(
+            student_id=student_id,
+            cohort_code=str(cohort_row.get("cohort_code") or ""),
+            cohort_name=str(cohort_row.get("cohort_name") or ""),
+            series_code=str(cohort_row.get("series_code") or ""),
+            attendance_present=present,
+            attendance_absent=absent,
+            attendance_scheduled=denom,
+            video_completed=video_done,
+            video_total=video_total,
+            homework_submitted=hw_done,
+            homework_total=hw_total,
+            exam_taken=exam_done,
+            exam_total=exam_total,
+            note=note,
         )
     )
 

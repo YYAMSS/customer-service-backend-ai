@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends
 
-from atguigu_edu.api.dependencies import get_dialogue_service, get_dialogue_state_repository
+from atguigu_edu.api.dependencies import get_business_provider, get_dialogue_service, get_dialogue_state_repository
 from atguigu_edu.api.schemas import (
     BotMessageResponse,
     ChatHistoryMessageResponse,
@@ -12,8 +12,10 @@ from atguigu_edu.api.schemas import (
     ChatObjectPayload,
     ChatRequest,
     ChatResponse,
+    SessionStateResponse,
 )
 from atguigu_edu.domain.message import BotMessage, Message, MessageObject, MessageType, ProcessResult
+from atguigu_edu.infrastructure.business_provider import BusinessProvider
 from atguigu_edu.repository.dialogue_repository import DialogueStateRepository
 from atguigu_edu.service.dialogue_service import DialogueService
 
@@ -24,9 +26,10 @@ router = APIRouter()
 async def chat(
     chat_request: ChatRequest,
     dialogue_service: DialogueService = Depends(get_dialogue_service),
+    business: BusinessProvider = Depends(get_business_provider),
 ) -> ChatResponse:
     message: Message = _build_message(chat_request)
-    process_result = await dialogue_service.handle_message(message)
+    process_result = await dialogue_service.handle_message(message, business)
     return _build_response(process_result)
 
 
@@ -91,6 +94,22 @@ def _build_object(message: MessageObject | None) -> ChatObjectPayload | None:
         id=message.id,
         title=message.title,
         attributes=message.attributes,
+    )
+
+
+@router.get("/api/chat/state", response_model=SessionStateResponse)
+async def chat_state(
+    sender_id: str,
+    dialogue_state_repository: DialogueStateRepository = Depends(get_dialogue_state_repository),
+) -> SessionStateResponse:
+    state = await dialogue_state_repository.load(sender_id)
+    return SessionStateResponse(
+        sender_id=state.sender_id,
+        active_flow=state.active_flow,
+        flow_step=state.flow_step,
+        flow_slots=dict(state.flow_slots or {}),
+        suspended_flow=state.suspended_flow,
+        focused_object=_build_object(state.focused_object),
     )
 
 

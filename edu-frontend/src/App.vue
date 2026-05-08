@@ -480,12 +480,13 @@ onMounted(async () => {
         </p>
 
         <form class="composer" @submit.prevent="sendTextMessage">
-          <input
+          <textarea
             v-model="draftMessage"
-            type="text"
-            placeholder="输入咨询内容，回车或点击发送…"
+            placeholder="输入咨询内容，Shift+回车换行，回车发送…"
             :disabled="isSending"
-          />
+            @keydown.enter.exact.prevent="sendTextMessage"
+            rows="3"
+          ></textarea>
           <button type="submit" :disabled="isSending || !draftMessage.trim()">
             {{ isSending ? '发送中…' : '发送' }}
           </button>
@@ -632,10 +633,10 @@ onMounted(async () => {
 
 .app-shell {
   min-height: 100vh;
-  padding: 20px 24px 28px;
+  padding: 10px 16px 14px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
 }
 
 .top-bar {
@@ -643,12 +644,13 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px 18px;
+  padding: 10px 18px;
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.82);
   border: 1px solid rgba(100, 116, 139, 0.2);
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.06);
   backdrop-filter: blur(10px);
+  flex-shrink: 0;
 }
 
 .brand {
@@ -699,18 +701,18 @@ onMounted(async () => {
 .workspace {
   flex: 1;
   min-height: 0;
-  width: min(1760px, 100%);
+  width: min(1920px, 100%);
   margin: 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 380px;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 14px;
   align-items: stretch;
 }
 
 .chat-card,
 .sidebar {
-  min-height: calc(100vh - 200px);
-  height: calc(100vh - 200px);
+  min-height: calc(100vh - 130px);
+  height: calc(100vh - 130px);
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid rgba(100, 116, 139, 0.18);
   border-radius: 20px;
@@ -725,20 +727,20 @@ onMounted(async () => {
 }
 
 .chat-inner-header {
-  padding: 20px 22px 12px;
+  padding: 14px 22px 8px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.22);
 }
 
 .chat-inner-header h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: 20px;
   letter-spacing: -0.02em;
 }
 
 .muted {
-  margin: 8px 0 0;
+  margin: 4px 0 0;
   color: #64748b;
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.6;
 }
 
@@ -748,7 +750,7 @@ onMounted(async () => {
 }
 
 .controls {
-  padding: 14px 22px;
+  padding: 10px 22px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.16);
 }
 
@@ -774,8 +776,8 @@ onMounted(async () => {
   min-width: 0;
 }
 
-.field input,
-.composer input {
+.field input {
+  flex: 1;
   min-height: 44px;
   padding: 10px 14px;
   border: 1px solid rgba(148, 163, 184, 0.45);
@@ -783,6 +785,20 @@ onMounted(async () => {
   background: rgba(255, 255, 255, 0.92);
   color: #0f172a;
   font-size: 15px;
+}
+
+.composer textarea {
+  flex: 1;
+  min-height: 80px;
+  padding: 14px 18px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f172a;
+  font-size: 16px;
+  resize: vertical;
+  line-height: 1.6;
+  font-family: inherit;
 }
 
 .messages {
@@ -928,7 +944,7 @@ onMounted(async () => {
   flex-shrink: 0;
   display: flex;
   gap: 10px;
-  padding: 14px 22px 18px;
+  padding: 12px 22px 14px;
   border-top: 1px solid rgba(148, 163, 184, 0.18);
   background: rgba(248, 250, 252, 0.85);
 }
@@ -1089,9 +1105,10 @@ onMounted(async () => {
 }
 
 .status-bar {
-  font-size: 12px;
+  font-size: 11px;
   color: #64748b;
   padding: 0 4px;
+  flex-shrink: 0;
 }
 
 .status-bar code {

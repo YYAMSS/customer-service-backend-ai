@@ -9,9 +9,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ENV_FILE, env_file_encoding="utf-8", extra="ignore")
 
     # LLM
-    llm_api_key: str = ""
-    llm_model: str = "gpt-4.1-mini"
-    llm_base_url: str = "https://api.openai.com/v1"
+    llm_api_key: str = "sk-6cfcae18ae0b41bc9796f7f89d9d50e9"
+    llm_model: str = "deepseek-v4-pro"
+    llm_base_url: str = "https://api.deepseek.com"
 
     # Database
     database_url: str = "mysql+aiomysql://root:123321@127.0.0.1:13306/edu?charset=utf8mb4"
